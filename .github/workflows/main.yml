@@ -8,130 +8,6 @@ on:
   push:
     branches:
       - gki-bakasu
-  workflow_dispatch:
-    inputs:
-      release_type:
-        description: "Release Type"
-        type: choice
-        options:
-          - CI
-          - Pre-Release
-          - Release
-        default: CI
-      use_cache:
-        description: "Use ccache/bazel cache (restore/save)"
-        type: boolean
-        default: false
-      allow_version_mismatch:
-        description: "Force-load modules with mismatched symbol versions ( force check_version() to pass )"
-        type: boolean
-        default: false
-      kernel_build_version:
-        description: "Kernel Version"
-        type: choice
-        options:
-          - All
-          - 5.10.x-android12
-          - 5.10.x-android13
-          - 5.15.x-android13
-          - 5.15.x-android14
-          - 6.1.x-android14
-          - 6.6.x-android15
-          - 6.12.x-android16
-        default: All
-      os_patch_level:
-        description: "Patch date (YYYY-MM), kernel sublevel, lts, or All (no filter)"
-        required: true
-        type: string
-        default: All
-      page_size:
-        description: "ARM64 page size. 16k requires explicitly selecting Kernel Version 6.1.x-android14, 6.6.x-android15 or 6.12.x-android16 (All is rejected)"
-        type: choice
-        options:
-          - 4k
-          - 16k
-        default: 4k
-      brand_name:
-        description: "Kernel Branding (empty = stock version string)"
-        type: string
-        default: Wild
-      keep_kmi:
-        description: "Keep stock KMI generation suffix in kernel version (fix #265)"
-        type: boolean
-        default: false
-      commit_mode:
-        description: "latest = branch tips, verified = audited pins, update = build latest then promote verified pins on success"
-        required: false
-        type: choice
-        options:
-          - latest
-          - verified
-          - update
-        default: verified
-      root_flavor:
-        description: "Root Flavor"
-        type: choice
-        options:
-          - KernelSU-Next
-          - KernelSU
-          - BakaSU
-          - SukiSU-Ultra
-          - KowSU
-          - FinaSU
-          - No Root
-          - All (KernelSU-Next + KernelSU + BakaSU)
-        default: All (KernelSU-Next + KernelSU + BakaSU)
-      use_susfs:
-        description: "SUSFS"
-        type: boolean
-        default: true
-      use_nomount:
-        description: "NoMount"
-        type: boolean
-        default: true
-      use_bbg:
-        description: "Baseband Guard"
-        type: boolean
-        default: true
-      use_net:
-        description: "Networking"
-        type: boolean
-        default: true
-      use_ds:
-        description: "DroidSpaces"
-        type: boolean
-        default: true
-      use_ntsync:
-        description: "NTSync"
-        type: boolean
-        default: true
-      use_ptrace:
-        description: "Ptrace Patch"
-        type: boolean
-        default: true
-      use_unicode:
-        description: "Unicode Fix"
-        type: boolean
-        default: true
-      use_bpf:
-        description: "BPF Stack (BTF + eBPF + FUSE-BPF)"
-        type: boolean
-        default: true
-      use_perf:
-        description: "Performance"
-        type: boolean
-        default: false
-      kernel_runner:
-        description: "Runner image for the build legs (ubuntu-24.04 = default, ubuntu-latest = newer image A/B)"
-        type: choice
-        options:
-          - ubuntu-24.04
-          - ubuntu-latest
-        default: ubuntu-24.04
-      test_release_notes:
-        description: "Render release notes preview only (skip all builds + release)"
-        type: boolean
-        default: false
   # schedule:  # nightly automatic builds disabled - user opt-in via workflow_dispatch only
   #   - cron: "0 5 * * 1" # Monday 12am EST (5am UTC)
 
@@ -539,7 +415,7 @@ jobs:
 
   list-manager-apks:
     needs: resolve-sources
-    if: ${{ "true && !false && needs.resolve-sources.outputs.manager_list != ''" }}
+    if: ${{ true && !false && needs.resolve-sources.outputs.manager_list != '' }}
     runs-on: ubuntu-24.04
     outputs:
       apk_list: ${{ steps.scan.outputs.apk_list }}
@@ -561,7 +437,7 @@ jobs:
 
   publish-manager-artifacts:
     needs: list-manager-apks
-    if: ${{ "true && !false && needs.list-manager-apks.outputs.apk_list != '[]'" }}
+    if: ${{ true && !false && needs.list-manager-apks.outputs.apk_list != '[]' }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -591,7 +467,7 @@ jobs:
     # would skip everything and produce no metamodule artifact. Compute the
     # effective flag once here and have the steps key off the job-level
     # env instead of the raw input.
-    if: ${{ "(true || github.event_name == 'schedule') && !false" }}
+    if: ${{ (true || github.event_name == 'schedule') && !false }}
     env:
       NOMOUNT_WANTED: ${{ true || (github.event_name == 'schedule' && true) || false }}
     runs-on: ubuntu-24.04
@@ -633,7 +509,7 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: ${{ "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.10.x-android12')" }}
+    if: ${{ (true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.10.x-android12') }}
     strategy:
       fail-fast: false
       matrix:
@@ -665,7 +541,7 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: ${{ "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.10.x-android13')" }}
+    if: ${{ (true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.10.x-android13') }}
     strategy:
       fail-fast: false
       matrix:
@@ -697,7 +573,7 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: ${{ "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.15.x-android13')" }}
+    if: ${{ (true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.15.x-android13') }}
     strategy:
       fail-fast: false
       matrix:
@@ -729,7 +605,7 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: ${{ "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.15.x-android14')" }}
+    if: ${{ (true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.15.x-android14') }}
     strategy:
       fail-fast: false
       matrix:
@@ -761,7 +637,7 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: ${{ "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.1.x-android14')" }}
+    if: ${{ (true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.1.x-android14') }}
     strategy:
       fail-fast: false
       matrix:
@@ -793,7 +669,7 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: ${{ "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.6.x-android15')" }}
+    if: ${{ (true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.6.x-android15') }}
     strategy:
       fail-fast: false
       matrix:
@@ -825,7 +701,7 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: ${{ "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.12.x-android16')" }}
+    if: ${{ (true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.12.x-android16') }}
     strategy:
       fail-fast: false
       matrix:
@@ -1214,7 +1090,7 @@ jobs:
           echo "announced ${sent} message(s)"
 
   update-verified-pins:
-    if: ${{ "true && !false && 'verified' == 'update'" }}
+    if: ${{ true && !false && 'verified' == 'update' }}
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -1269,7 +1145,7 @@ jobs:
           git commit -m "chore(pins): promote verified commits to latest built (${STAMP})"
           git push
   rej:
-    if: ${{ "true && !false && always()" }}
+    if: ${{ true && !false && always() }}
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -1361,7 +1237,7 @@ jobs:
     # full 7-family run. The contains() checks keep a genuinely failed
     # or cancelled build from publishing. needs.* rather than a per-job
     # list so a new family doesn't need editing here.
-    if: ${{ >- }}
+    if: >-
       always() && !cancelled() &&
       true &&
       !false &&
@@ -1889,7 +1765,7 @@ jobs:
     # result check below that meant a failed resolve-sources would
     # delete the existing nightly tag and republish it from a body
     # rendered off empty/absent inputs.
-    if: ${{ >- }}
+    if: >-
       always() &&
       needs.resolve-sources.result == 'success' &&
       needs.notes-preview.result == 'success' &&
