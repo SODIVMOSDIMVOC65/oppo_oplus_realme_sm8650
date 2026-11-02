@@ -141,7 +141,7 @@ jobs:
   # variables, so their inherited nightly+sync crons skip (no minutes burned);
   # workflow_dispatch is unaffected. Upstream sets the variable to 'true'.
   resolve-sources:
-    if: true || (github.event_name == 'schedule' && vars.ENABLE_SCHEDULED_BUILDS == 'true')
+    if: ${{ true || (github.event_name == 'schedule' && vars.ENABLE_SCHEDULED_BUILDS == 'true') }}
     runs-on: ubuntu-24.04
     outputs:
       nomount_commit: ${{ steps.resolve.outputs.nomount_commit }}
@@ -524,7 +524,7 @@ jobs:
           echo "feature_set=${FEATURES%+}" >> "$GITHUB_OUTPUT"
 
       - name: Clone shared source repos once
-        if: true && !false
+        if: ${{ true && !false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -539,7 +539,7 @@ jobs:
 
   list-manager-apks:
     needs: resolve-sources
-    if: "true && !false && needs.resolve-sources.outputs.manager_list != ''"
+    if: ${{ "true && !false && needs.resolve-sources.outputs.manager_list != ''" }}
     runs-on: ubuntu-24.04
     outputs:
       apk_list: ${{ steps.scan.outputs.apk_list }}
@@ -561,7 +561,7 @@ jobs:
 
   publish-manager-artifacts:
     needs: list-manager-apks
-    if: "true && !false && needs.list-manager-apks.outputs.apk_list != '[]'"
+    if: ${{ "true && !false && needs.list-manager-apks.outputs.apk_list != '[]'" }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -591,17 +591,17 @@ jobs:
     # would skip everything and produce no metamodule artifact. Compute the
     # effective flag once here and have the steps key off the job-level
     # env instead of the raw input.
-    if: "(true || github.event_name == 'schedule') && !false"
+    if: ${{ "(true || github.event_name == 'schedule') && !false" }}
     env:
       NOMOUNT_WANTED: ${{ true || (github.event_name == 'schedule' && true) || false }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-        if: env.NOMOUNT_WANTED == 'true'
+        if: ${{ env.NOMOUNT_WANTED == 'true' }}
 
       - name: Clone NoMount source at pinned commit
         id: clone
-        if: env.NOMOUNT_WANTED == 'true'
+        if: ${{ env.NOMOUNT_WANTED == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -614,14 +614,14 @@ jobs:
           echo "commit=${COMMIT}" >> "$GITHUB_OUTPUT"
 
       - name: Build NoMount metamodule (nm only, no .ko)
-        if: env.NOMOUNT_WANTED == 'true'
+        if: ${{ env.NOMOUNT_WANTED == 'true' }}
         id: buildmod
         uses: ./.github/actions/nomount-metamodule
         with:
           commit: ${{ steps.clone.outputs.commit }}
 
       - name: Upload NoMount metamodule
-        if: env.NOMOUNT_WANTED == 'true'
+        if: ${{ env.NOMOUNT_WANTED == 'true' }}
         uses: actions/upload-artifact@v7
         with:
           name: NoMount-Metamodule
@@ -633,7 +633,7 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.10.x-android12')"
+    if: ${{ "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.10.x-android12')" }}
     strategy:
       fail-fast: false
       matrix:
@@ -665,7 +665,7 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.10.x-android13')"
+    if: ${{ "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.10.x-android13')" }}
     strategy:
       fail-fast: false
       matrix:
@@ -697,7 +697,7 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.15.x-android13')"
+    if: ${{ "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.15.x-android13')" }}
     strategy:
       fail-fast: false
       matrix:
@@ -729,7 +729,7 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.15.x-android14')"
+    if: ${{ "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.15.x-android14')" }}
     strategy:
       fail-fast: false
       matrix:
@@ -761,7 +761,7 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.1.x-android14')"
+    if: ${{ "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.1.x-android14')" }}
     strategy:
       fail-fast: false
       matrix:
@@ -793,7 +793,7 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.6.x-android15')"
+    if: ${{ "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.6.x-android15')" }}
     strategy:
       fail-fast: false
       matrix:
@@ -825,7 +825,7 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.12.x-android16')"
+    if: ${{ "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.12.x-android16')" }}
     strategy:
       fail-fast: false
       matrix:
@@ -1214,7 +1214,7 @@ jobs:
           echo "announced ${sent} message(s)"
 
   update-verified-pins:
-    if: "true && !false && 'verified' == 'update'"
+    if: ${{ "true && !false && 'verified' == 'update'" }}
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -1254,7 +1254,7 @@ jobs:
           APPROVE_FINASU: ${{ 'BakaSU' == 'FinaSU' }}
 
       - name: Commit promoted pins
-        if: always() && steps.promote.conclusion == 'success'
+        if: ${{ always() && steps.promote.conclusion == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -1269,7 +1269,7 @@ jobs:
           git commit -m "chore(pins): promote verified commits to latest built (${STAMP})"
           git push
   rej:
-    if: "true && !false && always()"
+    if: ${{ "true && !false && always()" }}
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -1361,7 +1361,7 @@ jobs:
     # full 7-family run. The contains() checks keep a genuinely failed
     # or cancelled build from publishing. needs.* rather than a per-job
     # list so a new family doesn't need editing here.
-    if: >-
+    if: ${{ >- }}
       always() && !cancelled() &&
       true &&
       !false &&
@@ -1440,7 +1440,7 @@ jobs:
 
       - name: Generate New Tag
         id: tag
-        if: 'Release' != 'CI'
+        if: ${{ 'Release' != 'CI' }}
         run: |
           mapfile -t RELEASE_TAGS < <(gh api --paginate "repos/${{ github.repository }}/tags?per_page=100" --jq '.[].name' 2>/dev/null | grep -E '^r[0-9]+$' || true)
 
@@ -1747,7 +1747,7 @@ jobs:
           done
 
       - name: Verify NoMount metamodule zip
-        if: true
+        if: ${{ true }}
         run: |
           set -euo pipefail
           # The metamodule silently missed r20 (artifact built fine, no zip
@@ -1815,7 +1815,7 @@ jobs:
           exit "$failed"
 
   notes-preview:
-    if: always() && (true || (github.event_name == 'schedule' && vars.ENABLE_SCHEDULED_BUILDS == 'true'))
+    if: ${{ always() && (true || (github.event_name == 'schedule' && vars.ENABLE_SCHEDULED_BUILDS == 'true')) }}
     needs: [resolve-sources, build-android12-5-10, build-android13-5-10, build-android13-5-15, build-android14-5-15, build-android14-6-1, build-android15-6-6, build-android16-6-12]
     runs-on: ubuntu-24.04
     steps:
@@ -1889,7 +1889,7 @@ jobs:
     # result check below that meant a failed resolve-sources would
     # delete the existing nightly tag and republish it from a body
     # rendered off empty/absent inputs.
-    if: >-
+    if: ${{ >- }}
       always() &&
       needs.resolve-sources.result == 'success' &&
       needs.notes-preview.result == 'success' &&
