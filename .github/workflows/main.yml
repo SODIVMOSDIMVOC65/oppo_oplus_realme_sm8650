@@ -5,6 +5,9 @@ permissions:
   actions: write
 
 on:
+  push:
+    branches:
+      - gki-bakasu
   workflow_dispatch:
     inputs:
       release_type:
@@ -138,7 +141,7 @@ jobs:
   # variables, so their inherited nightly+sync crons skip (no minutes burned);
   # workflow_dispatch is unaffected. Upstream sets the variable to 'true'.
   resolve-sources:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.ENABLE_SCHEDULED_BUILDS == 'true')
+    if: true || (github.event_name == 'schedule' && vars.ENABLE_SCHEDULED_BUILDS == 'true')
     runs-on: ubuntu-24.04
     outputs:
       nomount_commit: ${{ steps.resolve.outputs.nomount_commit }}
@@ -187,8 +190,8 @@ jobs:
           set -euo pipefail
           # Scheduled (nightly) runs carry no inputs; default them the same
           # as the workflow_dispatch defaults below.
-          PAGE_SIZE="${{ inputs.page_size || '4k' }}"
-          KVER="${{ inputs.kernel_build_version || 'All' }}"
+          PAGE_SIZE="${{ '4k' || '4k' }}"
+          KVER="${{ '6.6.x-android15' || 'All' }}"
           [ "$PAGE_SIZE" = "16k" ] || exit 0
           # Only these GKI families use a Kleaf build branch exposing
           # --page_size (main-kernel-build-2023/2024, main-kernel-2025).
@@ -213,9 +216,9 @@ jobs:
           # NoMount, kernelsu/bakasu roots, and SUSFS; KernelSU-Next stays latest.
           # Scheduled (nightly) runs use latest by default.
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            COMMIT_MODE="${{ inputs.commit_mode || 'latest' }}"
+            COMMIT_MODE="${{ 'verified' || 'latest' }}"
           else
-            COMMIT_MODE="${{ inputs.commit_mode || 'verified' }}"
+            COMMIT_MODE="${{ 'verified' || 'verified' }}"
           fi
           echo "commit_mode=${COMMIT_MODE}"
 
@@ -340,7 +343,7 @@ jobs:
           if [ "${{ github.event_name }}" = "schedule" ]; then
             SCHED_SUSFS=true
           else
-            SCHED_SUSFS="${{ inputs.use_susfs }}"
+            SCHED_SUSFS="${{ true }}"
           fi
           if [ "$SCHED_SUSFS" = "true" ]; then
             KERNELSU_COMMIT="$(pick "$PIN_KERNELSU" https://github.com/tiann/KernelSU.git refs/heads/main)"
@@ -378,7 +381,7 @@ jobs:
           # label the "All" arm matches below — a bare 'All' fell through to *)
           # and failed the whole job, yet the manager step's All* glob still
           # matched, so the two steps disagreed. Keep these in sync.
-          case "${{ inputs.root_flavor || 'All (KernelSU-Next + KernelSU + BakaSU)' }}" in
+          case "${{ 'BakaSU' || 'All (KernelSU-Next + KernelSU + BakaSU)' }}" in
             KernelSU)
               echo "root_flavor=kernelsu" >> "$GITHUB_OUTPUT"
               emit root_commit "$KERNELSU_COMMIT"
@@ -400,7 +403,7 @@ jobs:
               ROOT_MATRIX="[$(mk_entry sukisu-ultra SukiSU-Ultra "$SUKISU_ULTRA_COMMIT" true)]"
               ;;
             FinaSU)
-              if [ "${{ inputs.use_susfs }}" = "false" ]; then
+              if [ "${{ true }}" = "false" ]; then
                 echo "ERROR: FinaSU requires SUSFS — re-run with SUSFS on." >&2
                 exit 1
               fi
@@ -409,7 +412,7 @@ jobs:
               ROOT_MATRIX="[$(mk_entry finasu FinaSU "$FINASU_COMMIT" true)]"
               ;;
             KowSU)
-              if [ "${{ inputs.use_susfs }}" = "true" ]; then
+              if [ "${{ true }}" = "true" ]; then
                 echo "ERROR: KowSU does not work together with SUSFS — re-run with SUSFS off." >&2
                 exit 1
               fi
@@ -430,7 +433,7 @@ jobs:
               echo "root_commit=" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo "ERROR: unknown root_flavor '${{ inputs.root_flavor }}'" >&2
+              echo "ERROR: unknown root_flavor '${{ 'BakaSU' }}'" >&2
               exit 1
               ;;
           esac
@@ -470,7 +473,7 @@ jobs:
         # APK pipeline (managers.yml): .github/actions/resolve-managers.
         uses: ./.github/actions/resolve-managers
         with:
-          root_flavor: ${{ inputs.root_flavor }}
+          root_flavor: ${{ 'BakaSU' }}
           all_flavors: next,kernelsu,bakasu
           allow_fallback: 'true'
           next_commit: ${{ steps.resolve.outputs.kernelsu_commit }}
@@ -500,11 +503,11 @@ jobs:
             F_DS=true;     F_NTSYNC=true;  F_PTRACE=true; F_UNICODE=true
             F_BPF=true;    F_PERF=false
           else
-            F_SUSFS="${{ inputs.use_susfs }}";   F_NOMOUNT="${{ inputs.use_nomount }}"
-            F_BBG="${{ inputs.use_bbg }}";        F_NET="${{ inputs.use_net }}"
-            F_DS="${{ inputs.use_ds }}";          F_NTSYNC="${{ inputs.use_ntsync }}"
-            F_PTRACE="${{ inputs.use_ptrace }}";  F_UNICODE="${{ inputs.use_unicode }}"
-            F_BPF="${{ inputs.use_bpf }}";        F_PERF="${{ inputs.use_perf }}"
+            F_SUSFS="${{ true }}";   F_NOMOUNT="${{ true }}"
+            F_BBG="${{ true }}";        F_NET="${{ true }}"
+            F_DS="${{ true }}";          F_NTSYNC="${{ true }}"
+            F_PTRACE="${{ true }}";  F_UNICODE="${{ true }}"
+            F_BPF="${{ true }}";        F_PERF="${{ false }}"
           fi
 
           FEATURES=""
@@ -521,7 +524,7 @@ jobs:
           echo "feature_set=${FEATURES%+}" >> "$GITHUB_OUTPUT"
 
       - name: Clone shared source repos once
-        if: inputs.use_nomount && !inputs.test_release_notes
+        if: true && !false
         shell: bash
         run: |
           set -euo pipefail
@@ -536,7 +539,7 @@ jobs:
 
   list-manager-apks:
     needs: resolve-sources
-    if: "github.event_name == 'workflow_dispatch' && !inputs.test_release_notes && needs.resolve-sources.outputs.manager_list != ''"
+    if: "true && !false && needs.resolve-sources.outputs.manager_list != ''"
     runs-on: ubuntu-24.04
     outputs:
       apk_list: ${{ steps.scan.outputs.apk_list }}
@@ -558,7 +561,7 @@ jobs:
 
   publish-manager-artifacts:
     needs: list-manager-apks
-    if: "github.event_name == 'workflow_dispatch' && !inputs.test_release_notes && needs.list-manager-apks.outputs.apk_list != '[]'"
+    if: "true && !false && needs.list-manager-apks.outputs.apk_list != '[]'"
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -583,14 +586,14 @@ jobs:
 
   build-nomount-module:
     needs: resolve-sources
-    # Scheduled (nightly) runs carry NO inputs at all - inputs.use_nomount is
-    # empty, not true - so the inner steps' `if: inputs.use_nomount` gates
+    # Scheduled (nightly) runs carry NO inputs at all - true is
+    # empty, not true - so the inner steps' `if: true` gates
     # would skip everything and produce no metamodule artifact. Compute the
     # effective flag once here and have the steps key off the job-level
     # env instead of the raw input.
-    if: "(github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && !inputs.test_release_notes"
+    if: "(true || github.event_name == 'schedule') && !false"
     env:
-      NOMOUNT_WANTED: ${{ inputs.use_nomount || (github.event_name == 'schedule' && true) || false }}
+      NOMOUNT_WANTED: ${{ true || (github.event_name == 'schedule' && true) || false }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -630,14 +633,14 @@ jobs:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: "(github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && !inputs.test_release_notes && ((github.event_name == 'schedule' && inputs.kernel_build_version == '') || inputs.kernel_build_version == 'All' || inputs.kernel_build_version == '5.10.x-android12')"
+    if: "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.10.x-android12')"
     strategy:
       fail-fast: false
       matrix:
         root: ${{ fromJson(needs.resolve-sources.outputs.root_matrix) }}
     uses: ./.github/workflows/prepare.yml
     with:
-      runner: ${{ inputs.kernel_runner }}
+      runner: ${{ 'ubuntu-24.04' }}
       config_file: .github/config/android12-5.10.json
       feature_set: ${{ needs.resolve-sources.outputs.feature_set }}
       susfs_commit: ${{ matrix.root.root_flavor == 'bakasu' && needs.resolve-sources.outputs.susfs_commit_android12_5_10_bakasu || (matrix.root.root_flavor == 'sukisu-ultra' && needs.resolve-sources.outputs.susfs_commit_android12_5_10_sukisu_ultra || needs.resolve-sources.outputs.susfs_commit_android12_5_10) }}
@@ -650,26 +653,26 @@ jobs:
       ksu_branch: ${{ needs.resolve-sources.outputs.kernelsu_commit }}
       anykernel3_commit: ${{ needs.resolve-sources.outputs.anykernel3_commit }}
       droidspaces_commit: ${{ needs.resolve-sources.outputs.droidspaces_commit }}
-      brand_name: ${{ inputs.brand_name || 'Wild' }}
-      keep_kmi: ${{ inputs.keep_kmi || false }}
-      os_patch_level: ${{ inputs.os_patch_level || 'All' }}
-      allow_version_mismatch: ${{ inputs.allow_version_mismatch || false }}
-      use_cache: ${{ inputs.use_cache }}
-      page_size: ${{ inputs.page_size || '4k' }}
+      brand_name: ${{ 'Wild' || 'Wild' }}
+      keep_kmi: ${{ true || false }}
+      os_patch_level: ${{ '2025-07' || 'All' }}
+      allow_version_mismatch: ${{ true || false }}
+      use_cache: ${{ true }}
+      page_size: ${{ '4k' || '4k' }}
     secrets: inherit
 
   build-android13-5-10:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: "(github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && !inputs.test_release_notes && ((github.event_name == 'schedule' && inputs.kernel_build_version == '') || inputs.kernel_build_version == 'All' || inputs.kernel_build_version == '5.10.x-android13')"
+    if: "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.10.x-android13')"
     strategy:
       fail-fast: false
       matrix:
         root: ${{ fromJson(needs.resolve-sources.outputs.root_matrix) }}
     uses: ./.github/workflows/prepare.yml
     with:
-      runner: ${{ inputs.kernel_runner }}
+      runner: ${{ 'ubuntu-24.04' }}
       config_file: .github/config/android13-5.10.json
       feature_set: ${{ needs.resolve-sources.outputs.feature_set }}
       susfs_commit: ${{ matrix.root.root_flavor == 'bakasu' && needs.resolve-sources.outputs.susfs_commit_android13_5_10_bakasu || (matrix.root.root_flavor == 'sukisu-ultra' && needs.resolve-sources.outputs.susfs_commit_android13_5_10_sukisu_ultra || needs.resolve-sources.outputs.susfs_commit_android13_5_10) }}
@@ -682,26 +685,26 @@ jobs:
       ksu_branch: ${{ needs.resolve-sources.outputs.kernelsu_commit }}
       anykernel3_commit: ${{ needs.resolve-sources.outputs.anykernel3_commit }}
       droidspaces_commit: ${{ needs.resolve-sources.outputs.droidspaces_commit }}
-      brand_name: ${{ inputs.brand_name || 'Wild' }}
-      keep_kmi: ${{ inputs.keep_kmi || false }}
-      os_patch_level: ${{ inputs.os_patch_level || 'All' }}
-      allow_version_mismatch: ${{ inputs.allow_version_mismatch || false }}
-      use_cache: ${{ inputs.use_cache }}
-      page_size: ${{ inputs.page_size || '4k' }}
+      brand_name: ${{ 'Wild' || 'Wild' }}
+      keep_kmi: ${{ true || false }}
+      os_patch_level: ${{ '2025-07' || 'All' }}
+      allow_version_mismatch: ${{ true || false }}
+      use_cache: ${{ true }}
+      page_size: ${{ '4k' || '4k' }}
     secrets: inherit
 
   build-android13-5-15:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: "(github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && !inputs.test_release_notes && ((github.event_name == 'schedule' && inputs.kernel_build_version == '') || inputs.kernel_build_version == 'All' || inputs.kernel_build_version == '5.15.x-android13')"
+    if: "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.15.x-android13')"
     strategy:
       fail-fast: false
       matrix:
         root: ${{ fromJson(needs.resolve-sources.outputs.root_matrix) }}
     uses: ./.github/workflows/prepare.yml
     with:
-      runner: ${{ inputs.kernel_runner }}
+      runner: ${{ 'ubuntu-24.04' }}
       config_file: .github/config/android13-5.15.json
       feature_set: ${{ needs.resolve-sources.outputs.feature_set }}
       susfs_commit: ${{ matrix.root.root_flavor == 'bakasu' && needs.resolve-sources.outputs.susfs_commit_android13_5_15_bakasu || (matrix.root.root_flavor == 'sukisu-ultra' && needs.resolve-sources.outputs.susfs_commit_android13_5_15_sukisu_ultra || needs.resolve-sources.outputs.susfs_commit_android13_5_15) }}
@@ -714,26 +717,26 @@ jobs:
       ksu_branch: ${{ needs.resolve-sources.outputs.kernelsu_commit }}
       anykernel3_commit: ${{ needs.resolve-sources.outputs.anykernel3_commit }}
       droidspaces_commit: ${{ needs.resolve-sources.outputs.droidspaces_commit }}
-      brand_name: ${{ inputs.brand_name || 'Wild' }}
-      keep_kmi: ${{ inputs.keep_kmi || false }}
-      os_patch_level: ${{ inputs.os_patch_level || 'All' }}
-      allow_version_mismatch: ${{ inputs.allow_version_mismatch || false }}
-      use_cache: ${{ inputs.use_cache }}
-      page_size: ${{ inputs.page_size || '4k' }}
+      brand_name: ${{ 'Wild' || 'Wild' }}
+      keep_kmi: ${{ true || false }}
+      os_patch_level: ${{ '2025-07' || 'All' }}
+      allow_version_mismatch: ${{ true || false }}
+      use_cache: ${{ true }}
+      page_size: ${{ '4k' || '4k' }}
     secrets: inherit
 
   build-android14-5-15:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: "(github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && !inputs.test_release_notes && ((github.event_name == 'schedule' && inputs.kernel_build_version == '') || inputs.kernel_build_version == 'All' || inputs.kernel_build_version == '5.15.x-android14')"
+    if: "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '5.15.x-android14')"
     strategy:
       fail-fast: false
       matrix:
         root: ${{ fromJson(needs.resolve-sources.outputs.root_matrix) }}
     uses: ./.github/workflows/prepare.yml
     with:
-      runner: ${{ inputs.kernel_runner }}
+      runner: ${{ 'ubuntu-24.04' }}
       config_file: .github/config/android14-5.15.json
       feature_set: ${{ needs.resolve-sources.outputs.feature_set }}
       susfs_commit: ${{ matrix.root.root_flavor == 'bakasu' && needs.resolve-sources.outputs.susfs_commit_android14_5_15_bakasu || (matrix.root.root_flavor == 'sukisu-ultra' && needs.resolve-sources.outputs.susfs_commit_android14_5_15_sukisu_ultra || needs.resolve-sources.outputs.susfs_commit_android14_5_15) }}
@@ -746,26 +749,26 @@ jobs:
       ksu_branch: ${{ needs.resolve-sources.outputs.kernelsu_commit }}
       anykernel3_commit: ${{ needs.resolve-sources.outputs.anykernel3_commit }}
       droidspaces_commit: ${{ needs.resolve-sources.outputs.droidspaces_commit }}
-      brand_name: ${{ inputs.brand_name || 'Wild' }}
-      keep_kmi: ${{ inputs.keep_kmi || false }}
-      os_patch_level: ${{ inputs.os_patch_level || 'All' }}
-      allow_version_mismatch: ${{ inputs.allow_version_mismatch || false }}
-      use_cache: ${{ inputs.use_cache }}
-      page_size: ${{ inputs.page_size || '4k' }}
+      brand_name: ${{ 'Wild' || 'Wild' }}
+      keep_kmi: ${{ true || false }}
+      os_patch_level: ${{ '2025-07' || 'All' }}
+      allow_version_mismatch: ${{ true || false }}
+      use_cache: ${{ true }}
+      page_size: ${{ '4k' || '4k' }}
     secrets: inherit
 
   build-android14-6-1:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: "(github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && !inputs.test_release_notes && ((github.event_name == 'schedule' && inputs.kernel_build_version == '') || inputs.kernel_build_version == 'All' || inputs.kernel_build_version == '6.1.x-android14')"
+    if: "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.1.x-android14')"
     strategy:
       fail-fast: false
       matrix:
         root: ${{ fromJson(needs.resolve-sources.outputs.root_matrix) }}
     uses: ./.github/workflows/prepare.yml
     with:
-      runner: ${{ inputs.kernel_runner }}
+      runner: ${{ 'ubuntu-24.04' }}
       config_file: .github/config/android14-6.1.json
       feature_set: ${{ needs.resolve-sources.outputs.feature_set }}
       susfs_commit: ${{ matrix.root.root_flavor == 'bakasu' && needs.resolve-sources.outputs.susfs_commit_android14_6_1_bakasu || (matrix.root.root_flavor == 'sukisu-ultra' && needs.resolve-sources.outputs.susfs_commit_android14_6_1_sukisu_ultra || needs.resolve-sources.outputs.susfs_commit_android14_6_1) }}
@@ -778,26 +781,26 @@ jobs:
       ksu_branch: ${{ needs.resolve-sources.outputs.kernelsu_commit }}
       anykernel3_commit: ${{ needs.resolve-sources.outputs.anykernel3_commit }}
       droidspaces_commit: ${{ needs.resolve-sources.outputs.droidspaces_commit }}
-      brand_name: ${{ inputs.brand_name || 'Wild' }}
-      keep_kmi: ${{ inputs.keep_kmi || false }}
-      os_patch_level: ${{ inputs.os_patch_level || 'All' }}
-      allow_version_mismatch: ${{ inputs.allow_version_mismatch || false }}
-      use_cache: ${{ inputs.use_cache }}
-      page_size: ${{ inputs.page_size || '4k' }}
+      brand_name: ${{ 'Wild' || 'Wild' }}
+      keep_kmi: ${{ true || false }}
+      os_patch_level: ${{ '2025-07' || 'All' }}
+      allow_version_mismatch: ${{ true || false }}
+      use_cache: ${{ true }}
+      page_size: ${{ '4k' || '4k' }}
     secrets: inherit
 
   build-android15-6-6:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: "(github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && !inputs.test_release_notes && ((github.event_name == 'schedule' && inputs.kernel_build_version == '') || inputs.kernel_build_version == 'All' || inputs.kernel_build_version == '6.6.x-android15')"
+    if: "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.6.x-android15')"
     strategy:
       fail-fast: false
       matrix:
         root: ${{ fromJson(needs.resolve-sources.outputs.root_matrix) }}
     uses: ./.github/workflows/prepare.yml
     with:
-      runner: ${{ inputs.kernel_runner }}
+      runner: ${{ 'ubuntu-24.04' }}
       config_file: .github/config/android15-6.6.json
       feature_set: ${{ needs.resolve-sources.outputs.feature_set }}
       susfs_commit: ${{ matrix.root.root_flavor == 'bakasu' && needs.resolve-sources.outputs.susfs_commit_android15_6_6_bakasu || (matrix.root.root_flavor == 'sukisu-ultra' && needs.resolve-sources.outputs.susfs_commit_android15_6_6_sukisu_ultra || needs.resolve-sources.outputs.susfs_commit_android15_6_6) }}
@@ -810,26 +813,26 @@ jobs:
       ksu_branch: ${{ needs.resolve-sources.outputs.kernelsu_commit }}
       anykernel3_commit: ${{ needs.resolve-sources.outputs.anykernel3_commit }}
       droidspaces_commit: ${{ needs.resolve-sources.outputs.droidspaces_commit }}
-      brand_name: ${{ inputs.brand_name || 'Wild' }}
-      keep_kmi: ${{ inputs.keep_kmi || false }}
-      os_patch_level: ${{ inputs.os_patch_level || 'All' }}
-      allow_version_mismatch: ${{ inputs.allow_version_mismatch || false }}
-      use_cache: ${{ inputs.use_cache }}
-      page_size: ${{ inputs.page_size || '4k' }}
+      brand_name: ${{ 'Wild' || 'Wild' }}
+      keep_kmi: ${{ true || false }}
+      os_patch_level: ${{ '2025-07' || 'All' }}
+      allow_version_mismatch: ${{ true || false }}
+      use_cache: ${{ true }}
+      page_size: ${{ '4k' || '4k' }}
     secrets: inherit
 
   build-android16-6-12:
     needs:
       - resolve-sources
       - build-nomount-module
-    if: "(github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && !inputs.test_release_notes && ((github.event_name == 'schedule' && inputs.kernel_build_version == '') || inputs.kernel_build_version == 'All' || inputs.kernel_build_version == '6.12.x-android16')"
+    if: "(true || github.event_name == 'schedule') && !false && ((github.event_name == 'schedule' && '6.6.x-android15' == '') || '6.6.x-android15' == 'All' || '6.6.x-android15' == '6.12.x-android16')"
     strategy:
       fail-fast: false
       matrix:
         root: ${{ fromJson(needs.resolve-sources.outputs.root_matrix) }}
     uses: ./.github/workflows/prepare.yml
     with:
-      runner: ${{ inputs.kernel_runner }}
+      runner: ${{ 'ubuntu-24.04' }}
       config_file: .github/config/android16-6.12.json
       feature_set: ${{ needs.resolve-sources.outputs.feature_set }}
       susfs_commit: ${{ matrix.root.root_flavor == 'bakasu' && needs.resolve-sources.outputs.susfs_commit_android16_6_12_bakasu || (matrix.root.root_flavor == 'sukisu-ultra' && needs.resolve-sources.outputs.susfs_commit_android16_6_12_sukisu_ultra || needs.resolve-sources.outputs.susfs_commit_android16_6_12) }}
@@ -842,12 +845,12 @@ jobs:
       ksu_branch: ${{ needs.resolve-sources.outputs.kernelsu_commit }}
       anykernel3_commit: ${{ needs.resolve-sources.outputs.anykernel3_commit }}
       droidspaces_commit: ${{ needs.resolve-sources.outputs.droidspaces_commit }}
-      brand_name: ${{ inputs.brand_name || 'Wild' }}
-      keep_kmi: ${{ inputs.keep_kmi || false }}
-      os_patch_level: ${{ inputs.os_patch_level || 'All' }}
-      allow_version_mismatch: ${{ inputs.allow_version_mismatch || false }}
-      use_cache: ${{ inputs.use_cache }}
-      page_size: ${{ inputs.page_size || '4k' }}
+      brand_name: ${{ 'Wild' || 'Wild' }}
+      keep_kmi: ${{ true || false }}
+      os_patch_level: ${{ '2025-07' || 'All' }}
+      allow_version_mismatch: ${{ true || false }}
+      use_cache: ${{ true }}
+      page_size: ${{ '4k' || '4k' }}
     secrets: inherit
 
   telegram-announce:
@@ -864,7 +867,7 @@ jobs:
     # and posts nothing, in either group. GitHub string comparison is
     # case-insensitive, so "All" here also matches all/ALL.
     name: Telegram Announce
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.ENABLE_SCHEDULED_BUILDS == 'true')) && (github.event_name != 'workflow_dispatch' || inputs.os_patch_level == '' || inputs.os_patch_level == 'All') }}
+    if: ${{ !cancelled() && (true || (github.event_name == 'schedule' && vars.ENABLE_SCHEDULED_BUILDS == 'true')) && (false || '2025-07' == '' || '2025-07' == 'All') }}
     needs:
       - resolve-sources
       - build-android12-5-10
@@ -904,7 +907,7 @@ jobs:
       # release_type dispatch input ("CI"/"Nightly"/"Pre-Release"/"Release";
       # empty on schedule): the digest cards carry the testing/flash
       # warning unless this is "Release".
-      RELEASE_TYPE: ${{ inputs.release_type }}
+      RELEASE_TYPE: ${{ 'Release' }}
       # Local Bot API 10.x server (rich cards: real tables, styled button
       # rows, expandable quotes). Optional - without these secrets the job
       # falls back to the cloud API and the plain HTML cards.
@@ -999,7 +1002,7 @@ jobs:
           # Dispatch "Patch date" input (blank on schedule runs). The job-level
           # if: already gates non-All values; this re-checks so a future edit to
           # that gate can never leak a targeted patch-date build into the groups.
-          PATCH_LEVEL: ${{ inputs.os_patch_level }}
+          PATCH_LEVEL: ${{ '2025-07' }}
         run: |
           set -uo pipefail
           if [ -z "$TG_TOKEN" ] || [ -z "$TG_CHAT" ]; then
@@ -1211,7 +1214,7 @@ jobs:
           echo "announced ${sent} message(s)"
 
   update-verified-pins:
-    if: "github.event_name == 'workflow_dispatch' && !inputs.test_release_notes && inputs.commit_mode == 'update'"
+    if: "true && !false && 'verified' == 'update'"
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -1244,11 +1247,11 @@ jobs:
           BAKASU_SHA: ${{ needs.resolve-sources.outputs.bakasu_commit }}
           SUKISU_ULTRA_SHA: ${{ needs.resolve-sources.outputs.sukisu_ultra_commit }}
           FINASU_SHA: ${{ needs.resolve-sources.outputs.finasu_commit }}
-          APPROVE_NOMOUNT: ${{ inputs.use_nomount }}
-          APPROVE_KERNELSU: ${{ (inputs.root_flavor == 'KernelSU' || startsWith(inputs.root_flavor, 'All')) }}
-          APPROVE_BAKASU: ${{ (inputs.root_flavor == 'BakaSU' || startsWith(inputs.root_flavor, 'All')) }}
-          APPROVE_SUKISU_ULTRA: ${{ inputs.root_flavor == 'SukiSU-Ultra' }}
-          APPROVE_FINASU: ${{ inputs.root_flavor == 'FinaSU' }}
+          APPROVE_NOMOUNT: ${{ true }}
+          APPROVE_KERNELSU: ${{ ('BakaSU' == 'KernelSU' || startsWith('BakaSU', 'All')) }}
+          APPROVE_BAKASU: ${{ ('BakaSU' == 'BakaSU' || startsWith('BakaSU', 'All')) }}
+          APPROVE_SUKISU_ULTRA: ${{ 'BakaSU' == 'SukiSU-Ultra' }}
+          APPROVE_FINASU: ${{ 'BakaSU' == 'FinaSU' }}
 
       - name: Commit promoted pins
         if: always() && steps.promote.conclusion == 'success'
@@ -1266,7 +1269,7 @@ jobs:
           git commit -m "chore(pins): promote verified commits to latest built (${STAMP})"
           git push
   rej:
-    if: "github.event_name == 'workflow_dispatch' && !inputs.test_release_notes && always()"
+    if: "true && !false && always()"
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -1360,9 +1363,9 @@ jobs:
     # list so a new family doesn't need editing here.
     if: >-
       always() && !cancelled() &&
-      github.event_name == 'workflow_dispatch' &&
-      !inputs.test_release_notes &&
-      (inputs.release_type == 'Pre-Release' || inputs.release_type == 'Release') &&
+      true &&
+      !false &&
+      ('Release' == 'Pre-Release' || 'Release' == 'Release') &&
       !contains(needs.*.result, 'failure') &&
       !contains(needs.*.result, 'cancelled')
     permissions:
@@ -1390,7 +1393,7 @@ jobs:
           set -euo pipefail
 
           failed=0
-          current_type="${{ inputs.kernel_build_version }}"
+          current_type="${{ '6.6.x-android15' }}"
 
           check_selected() {
             local target="$1"
@@ -1437,7 +1440,7 @@ jobs:
 
       - name: Generate New Tag
         id: tag
-        if: inputs.release_type != 'CI'
+        if: 'Release' != 'CI'
         run: |
           mapfile -t RELEASE_TAGS < <(gh api --paginate "repos/${{ github.repository }}/tags?per_page=100" --jq '.[].name' 2>/dev/null | grep -E '^r[0-9]+$' || true)
 
@@ -1744,7 +1747,7 @@ jobs:
           done
 
       - name: Verify NoMount metamodule zip
-        if: inputs.use_nomount
+        if: true
         run: |
           set -euo pipefail
           # The metamodule silently missed r20 (artifact built fine, no zip
@@ -1761,7 +1764,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ steps.tag.outputs.new_tag }}
           RELEASE_TITLE: ${{ steps.release_meta.outputs.release_title }}
-          IS_PRERELEASE: ${{ inputs.release_type == 'Pre-Release' }}
+          IS_PRERELEASE: ${{ 'Release' == 'Pre-Release' }}
         run: |
           set -euo pipefail
           shopt -s nullglob globstar
@@ -1812,7 +1815,7 @@ jobs:
           exit "$failed"
 
   notes-preview:
-    if: always() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.ENABLE_SCHEDULED_BUILDS == 'true'))
+    if: always() && (true || (github.event_name == 'schedule' && vars.ENABLE_SCHEDULED_BUILDS == 'true'))
     needs: [resolve-sources, build-android12-5-10, build-android13-5-10, build-android13-5-15, build-android14-5-15, build-android14-6-1, build-android15-6-6, build-android16-6-12]
     runs-on: ubuntu-24.04
     steps:
@@ -1823,24 +1826,24 @@ jobs:
         with:
           mode: kernel
         env:
-          ROOT_FLAVOR: ${{ inputs.root_flavor }}
+          ROOT_FLAVOR: ${{ 'BakaSU' }}
           FEATURE_SET: ${{ needs.resolve-sources.outputs.feature_set }}
           MANAGER_LIST: ${{ needs.resolve-sources.outputs.manager_list }}
           ROOT_MATRIX: ${{ needs.resolve-sources.outputs.root_matrix }}
           IS_SCHEDULE: ${{ github.event_name == 'schedule' }}
-          USE_SUSFS: ${{ inputs.use_susfs || (github.event_name == 'schedule' && true) || false }}
-          USE_NOMOUNT: ${{ inputs.use_nomount || (github.event_name == 'schedule' && true) || false }}
-          USE_BBG: ${{ inputs.use_bbg || (github.event_name == 'schedule' && true) || false }}
-          USE_DS: ${{ inputs.use_ds || (github.event_name == 'schedule' && true) || false }}
-          USE_NET: ${{ inputs.use_net || (github.event_name == 'schedule' && true) || false }}
-          USE_NTSYNC: ${{ inputs.use_ntsync || (github.event_name == 'schedule' && true) || false }}
-          USE_PTRACE: ${{ inputs.use_ptrace || (github.event_name == 'schedule' && true) || false }}
-          USE_UNICODE: ${{ inputs.use_unicode || (github.event_name == 'schedule' && true) || false }}
-          USE_BPF: ${{ inputs.use_bpf || (github.event_name == 'schedule' && true) || false }}
-          USE_PERF: ${{ inputs.use_perf || false }}
-          USE_CACHE: ${{ inputs.use_cache || (github.event_name == 'schedule' && true) || false }}
-          PAGE_SIZE: ${{ inputs.page_size || '4k' }}
-          KERNEL_BUILD_VERSION: ${{ inputs.kernel_build_version || 'All' }}
+          USE_SUSFS: ${{ true || (github.event_name == 'schedule' && true) || false }}
+          USE_NOMOUNT: ${{ true || (github.event_name == 'schedule' && true) || false }}
+          USE_BBG: ${{ true || (github.event_name == 'schedule' && true) || false }}
+          USE_DS: ${{ true || (github.event_name == 'schedule' && true) || false }}
+          USE_NET: ${{ true || (github.event_name == 'schedule' && true) || false }}
+          USE_NTSYNC: ${{ true || (github.event_name == 'schedule' && true) || false }}
+          USE_PTRACE: ${{ true || (github.event_name == 'schedule' && true) || false }}
+          USE_UNICODE: ${{ true || (github.event_name == 'schedule' && true) || false }}
+          USE_BPF: ${{ true || (github.event_name == 'schedule' && true) || false }}
+          USE_PERF: ${{ false || false }}
+          USE_CACHE: ${{ true || (github.event_name == 'schedule' && true) || false }}
+          PAGE_SIZE: ${{ '4k' || '4k' }}
+          KERNEL_BUILD_VERSION: ${{ '6.6.x-android15' || 'All' }}
           NOMOUNT_COMMIT: ${{ needs.resolve-sources.outputs.nomount_commit }}
           KSU_COMMIT: ${{ needs.resolve-sources.outputs.ksu_commit }}
           BAKASU_COMMIT: ${{ needs.resolve-sources.outputs.bakasu_commit }}
@@ -1890,7 +1893,7 @@ jobs:
       always() &&
       needs.resolve-sources.result == 'success' &&
       needs.notes-preview.result == 'success' &&
-      (github.event_name == 'schedule' || inputs.release_type == 'Nightly')
+      (github.event_name == 'schedule' || 'Release' == 'Nightly')
     needs: [notes-preview, resolve-sources]
     runs-on: ubuntu-24.04
     steps:
