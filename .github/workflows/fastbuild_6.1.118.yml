@@ -252,11 +252,14 @@ jobs:
           cd kernel_workspace
           if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" || ${{ github.event.inputs.ksu_type }} == "bakasu" ]]; then
             echo "正在配置BakaSU（由于SukiSU长期未维护无法正常编译，且BakaSU兼容sukisu管理器，故SukiSU源码仓库已重定向为bakasu）..."
-            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/refs/heads/main/kernel/setup.sh" | bash -s main
+            # 钉到已验证可用的 v4.2.0-rc3：该版本仍定义 kernel/feature/selinux_hide.c 里的 fake_state，
+            # 与 susfs4oki(oki-android14-6.1) 的 50_add_susfs 补丁匹配；
+            # 新 main 已删除该符号，会在链接期报 "undefined symbol: fake_state"
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/refs/tags/v4.2.0-rc3/kernel/setup.sh" | bash -s v4.2.0-rc3
             echo 'CONFIG_KSU_FULL_NAME_FORMAT="%TAG_NAME%-%COMMIT_SHA%@cctv18"' >> ./common/arch/arm64/configs/gki_defconfig
             cd ./KernelSU
-            # 生成自定义版本号（基于提交计数）, 失败时使用 114514
-            KSU_VERSION=$(expr $(git rev-list --count main) + 30700 2>/dev/null || echo 114514)
+            # 生成自定义版本号（基于提交计数）, 失败时使用 114514（钉 tag 后无 main 分支，改用 HEAD）
+            KSU_VERSION=$(expr $(git rev-list --count HEAD) + 30700 2>/dev/null || echo 114514)
             # 存储版本号到 GitHub 环境变量
             echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
             echo "ksuver=$KSU_VERSION" >> $GITHUB_OUTPUT
@@ -293,13 +296,17 @@ jobs:
           cd kernel_workspace
           if [[ ${{ github.event.inputs.ksu_type }} != "none" ]]; then
             echo "正在添加susfs补丁..."
-            git clone --depth=1 https://github.com/cctv18/susfs4oki.git susfs4ksu -b oki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}
+            git clone https://github.com/cctv18/susfs4oki.git susfs4ksu -b oki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}
+            # 钉到 2026-09-17 的已知可用提交：10-11/10-12 之后该分支同步了新版 KernelSU main，
+            # 与 BakaSU 新实现不兼容（fake_state 已从上游删除），会导致链接失败
+            git -C susfs4ksu checkout 7aef0d40
             wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/other_patch/69_hide_stuff.patch -O ./common/69_hide_stuff.patch
             cp ./susfs4ksu/kernel_patches/50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch ./common/
             cp ./susfs4ksu/kernel_patches/fs/* ./common/fs/
             cp ./susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
             cd ./common
-            patch -p1 -F 3 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
+            # 关键补丁不再容忍失败：失败立即终止，避免错误拖到链接期才暴露
+            patch -p1 -F 3 < 50_add_susfs_in_gki-${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || { echo "SUSFS 补丁应用失败，终止构建"; exit 1; }
             patch -p1 -N -F 3 < 69_hide_stuff.patch || true
             cd ..
           else
