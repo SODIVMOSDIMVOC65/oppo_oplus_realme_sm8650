@@ -28,10 +28,10 @@ on:
         type: boolean
         default: 'true'
       kpm_enable:
-        description: '是否开启kpm(使用KpatchNext独立实现kpm(支持任意KSU/面具环境); 不需要可保持默认关闭)'
+        description: '是否开启kpm(使用KpatchNext独立实现kpm(支持任意KSU/面具环境); 默认开启)'
         required: true
         type: boolean
-        default: 'false'
+        default: 'true'
       lz4_enable:
         description: '是否安装 lz4 1.10.0+zstd 1.5.7 补丁'
         required: true
@@ -252,10 +252,14 @@ jobs:
           cd kernel_workspace
           if [[ ${{ github.event.inputs.ksu_type }} == "sukisu" || ${{ github.event.inputs.ksu_type }} == "bakasu" ]]; then
             echo "正在配置BakaSU（由于SukiSU长期未维护无法正常编译，且BakaSU兼容sukisu管理器，故SukiSU源码仓库已重定向为bakasu）..."
-            # 钉到已验证可用的 v4.2.0-rc3：该版本仍定义 kernel/feature/selinux_hide.c 里的 fake_state，
-            # 与 susfs4oki(oki-android14-6.1) 的 50_add_susfs 补丁匹配；
-            # 新 main 已删除该符号，会在链接期报 "undefined symbol: fake_state"
-            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/refs/tags/v4.2.0-rc3/kernel/setup.sh" | bash -s v4.2.0-rc3
+            # 升级到 d5e9e025（uapi 6 / KSUVER 35252+，与平板 BakaSU 内核同代）：
+            # 新版 BakaSU 已删除 kernel/feature/selinux_hide.c 里的 fake_state，
+            # 而 susfs4oki(oki-android14-6.1) 的 50_add_susfs 补丁仍 extern 引用它，
+            # 故在下方补一个全局空白定义（语义与旧版 __maybe_static struct selinux_state fake_state 一致）
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/refs/heads/main/kernel/setup.sh" | bash -s d5e9e025b8b49155f8014684d64c91742b465f65
+            # 新版 BakaSU 兼容层：为 SUSFS 补丁补 fake_state 全局定义（旧版由 BakaSU 自己提供）
+            printf '#include <security.h>\nstruct selinux_state fake_state;\n' > ./KernelSU/kernel/bakasu_fake_state.c
+            grep -q 'bakasu_fake_state.o' ./KernelSU/kernel/Kbuild || printf '\nobj-y += bakasu_fake_state.o\n' >> ./KernelSU/kernel/Kbuild
             echo 'CONFIG_KSU_FULL_NAME_FORMAT="%TAG_NAME%-%COMMIT_SHA%@cctv18"' >> ./common/arch/arm64/configs/gki_defconfig
             cd ./KernelSU
             # 生成自定义版本号（基于提交计数）, 失败时使用 114514（钉 tag 后无 main 分支，改用 HEAD）
